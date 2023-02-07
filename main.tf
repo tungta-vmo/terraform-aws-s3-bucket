@@ -3,9 +3,9 @@ data "aws_canonical_user_id" "this" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  create_bucket = var.create_bucket && var.putin_khuylo
+  create_bucket = var.create_bucket
 
-  attach_policy = var.attach_require_latest_tls_policy || var.attach_elb_log_delivery_policy || var.attach_lb_log_delivery_policy || var.attach_deny_insecure_transport_policy || var.attach_inventory_destination_policy || var.attach_policy
+  attach_policy = var.attach_require_latest_tls_policy || var.attach_elb_log_delivery_policy || var.attach_lb_log_delivery_policy || var.attach_deny_insecure_transport_policy || var.attach_inventory_destination_policy || var.attach_policy || var.public_access_enable
 
   # Variables with type `any` should be jsonencode()'d when value is coming from Terragrunt
   grants               = try(jsondecode(var.grant), var.grant)
@@ -519,7 +519,8 @@ data "aws_iam_policy_document" "combined" {
     var.attach_require_latest_tls_policy ? data.aws_iam_policy_document.require_latest_tls[0].json : "",
     var.attach_deny_insecure_transport_policy ? data.aws_iam_policy_document.deny_insecure_transport[0].json : "",
     var.attach_inventory_destination_policy ? data.aws_iam_policy_document.inventory_destination_policy[0].json : "",
-    var.attach_policy ? var.policy : ""
+    var.attach_policy ? var.policy : "",
+    var.public_access_enable ? data.aws_iam_policy_document.public_access[0].json : ""
   ])
 }
 
@@ -837,3 +838,28 @@ data "aws_iam_policy_document" "inventory_destination_policy" {
     }
   }
 }
+
+data "aws_iam_policy_document" "public_access" {
+  count = local.create_bucket && var.public_access_enable ? 1 : 0
+
+  statement {
+    sid = "PublicReadGetObject"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.this[0].arn}/*",
+    ]
+  }
+}
+
+
